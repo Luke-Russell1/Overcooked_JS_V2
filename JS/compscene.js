@@ -47,8 +47,12 @@ export default class CompScene extends Phaser.Scene {
         this.tileset = this.map.addTilesetImage('environment', null, envConstants.tileSize, envConstants.tileSize, 0, 0);
         //creates the collision layer
         this.layer = this.map.createLayer(0, this.tileset, 0, 0);
-        this.layer.setCollisionByExclusion([2]);
-        console.log(this.layer);
+        
+        const tilesToCollideWith = [0, 1, 3, 4, 5]; // Example tile indices to collide with
+        this.layer.setCollision(tilesToCollideWith);
+
+        // Set callbacks for collision events
+        this.layer.setTileIndexCallback(tilesToCollideWith, this.handleTileCollision, this);
         // sets collision for everything but floor
         // creates the interactable layer
 
@@ -85,7 +89,7 @@ export default class CompScene extends Phaser.Scene {
     }
     movePlayer(player, speed, keys) {
         player.body.setVelocity(0);
-        
+
         // Movement system gives priority to the FIRST key pressed
         if (keys.left.isDown) {
             player.body.setVelocityX(-speed);
@@ -105,10 +109,17 @@ export default class CompScene extends Phaser.Scene {
         // this.socket.emit('playerMovement', {x: this.player_x, y: this.player_y});
         // Socket.io reference removed
     }
+
     updateDirection(player, direction) {
         // Update player frame based on direction
         const filename = `${direction}.png`;
         player.setFrame(filename);
+    }
+
+    handleTileCollision(player, tile) {
+        // Handle collision with specific tile
+        console.log("Collided with specific tile index:", tile.index);
+        // Implement logic based on the specific tile collided with
     }
 }
 
