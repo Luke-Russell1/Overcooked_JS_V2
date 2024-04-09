@@ -5,7 +5,7 @@ const expConstants = {
 };
 
 const envConstants = {
-    playerSpeed: 4,
+    playerSpeed: 120,
     FPS: 60,
     tileSize: 45,
 };
@@ -42,12 +42,17 @@ export default class CollabScene extends Phaser.Scene {
         this.player_x = [];
         this.player_y = [];
         const scene = this;
+
         // Creates and loads the tilemap 
         this.map = this.make.tilemap({ key: 'map', tileWidth: envConstants.tileSize, tileHeight: envConstants.tileSize });
         this.tileset = this.map.addTilesetImage('environment', null, envConstants.tileSize, envConstants.tileSize, 0, 0);
+
         //creates the collision layer
-        this.collisionLayer = this.map.createStaticLayer(0, this.tileset, 0, 0);
+        this.Layer = this.map.createLayer(0, this.tileset, 0, 0);
+
         // sets collision for everything but floor
+        this.layer.setCollisionByExclusion([2]);   
+
         // creates the interactable layer
 
 
@@ -62,18 +67,27 @@ export default class CollabScene extends Phaser.Scene {
 
         // creates and loads the players
         this.players = this.physics.add.group();
+
         // default player image is SOUTH
         this.player = this.physics.add.sprite(startPos1.x, startPos1.y, 'agents', 'SOUTH.png');
         this.otherPlayer = this.physics.add.sprite(startPos2.x, startPos2.y, 'agents', 'SOUTH.png');
         this.physics.world.enable(this.player);
         this.physics.world.enable(this.otherPlayer);
 
-        // sets collision for player
         // define directions
+        this.directions = ['NORTH', 'EAST', 'SOUTH', 'WEST'];
+
+
 
     }
 
     update() {
+        // sets collision
+        this.physics.world.collide(this.player, this.layer);
+        this.physics.world.collide(this.otherPlayer, this.layer);
+        // collision between players
+        this.physics.world.collide(this.player, this.otherPlayer);
+
         // Move player method
         this.movePlayer(this.player, envConstants.playerSpeed, this.keys);
         // Updating movement of other players
@@ -81,20 +95,30 @@ export default class CollabScene extends Phaser.Scene {
 
     movePlayer(player, speed, keys) {
         player.body.setVelocity(0);
-        if (keys.left.isDown) {
-            player.body.setVelocityX(-speed)
 
+        // Movement system gives priority to the FIRST key pressed
+        if (keys.left.isDown) {
+            player.body.setVelocityX(-speed);
+            this.updateDirection(player, 'WEST');
         } else if (keys.right.isDown) {
             player.body.setVelocityX(speed);
-        }
-        if (keys.up.isDown) {
+            this.updateDirection(player, 'EAST');
+        } else if (keys.up.isDown) {
             player.body.setVelocityY(-speed);
+            this.updateDirection(player, 'NORTH');
         } else if (keys.down.isDown) {
             player.body.setVelocityY(speed);
+            this.updateDirection(player, 'SOUTH');
         }
         this.player_x = player.body.x;
         this.player_y = player.body.y;
+        
         // this.socket.emit('playerMovement', {x: this.player_x, y: this.player_y});
         // Socket.io reference removed
+    }
+    updateDirection(player, direction) {
+        // Update player frame based on direction
+        const filename = `${direction}.png`;
+        player.setFrame(filename);
     }
 }

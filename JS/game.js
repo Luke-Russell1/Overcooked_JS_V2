@@ -24,6 +24,7 @@ class Game extends Phaser.Game {
         this.scene.add('CollabScene', new CollabScene());
         this.scene.start('CollabScene');
         this.scene.add('CompScene', new CompScene());
+        console.log(this.scene.keys);
     }
 }
 
