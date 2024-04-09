@@ -39,15 +39,13 @@ export default class CompScene extends Phaser.Scene {
             'right': this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT)
         }
         // define cursors and player data to be sent to server
-        this.player_x = [];
-        this.player_y = [];
         const scene = this;
         // Creates and loads the tilemap 
         this.map = this.make.tilemap({ key: 'map', tileWidth: envConstants.tileSize, tileHeight: envConstants.tileSize });
         this.tileset = this.map.addTilesetImage('environment', null, envConstants.tileSize, envConstants.tileSize, 0, 0);
         //creates the collision layer
         this.layer = this.map.createLayer(0, this.tileset, 0, 0);
-        
+
         const tilesToCollideWith = [0, 1, 3, 4, 5]; // Example tile indices to collide with
         this.layer.setCollision(tilesToCollideWith);
 

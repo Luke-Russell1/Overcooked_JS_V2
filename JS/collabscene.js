@@ -47,6 +47,7 @@ export default class CollabScene extends Phaser.Scene {
         };
         this.player_collision_tile = null;
         const scene = this;
+        
         // Creates and loads the tilemap 
         this.map = this.make.tilemap({ key: 'map', tileWidth: envConstants.tileSize, tileHeight: envConstants.tileSize });
         this.tileset = this.map.addTilesetImage('environment', null, envConstants.tileSize, envConstants.tileSize, 0, 0);
@@ -58,6 +59,7 @@ export default class CollabScene extends Phaser.Scene {
 
         // Set callbacks for collision events
         this.layer.setTileIndexCallback(tilesToCollideWith, this.handleTileCollision, this);
+
         // sets collision for everything but floor
         // creates the interactable layer
 
@@ -115,12 +117,10 @@ export default class CollabScene extends Phaser.Scene {
             player.body.setVelocityY(speed);
             this.updateDirection(player, 'SOUTH');
         }
-        
+
         // update state to reflect player position
         this.state.x = player.body.x;
         this.state.y = player.body.y;
-        // this.socket.emit('playerMovement', {x: this.player_x, y: this.player_y});
-        // Socket.io reference removed
     }
 
     updateDirection(player, direction) {
