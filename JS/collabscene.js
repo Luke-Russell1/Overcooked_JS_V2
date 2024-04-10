@@ -28,6 +28,9 @@ export default class CollabScene extends Phaser.Scene {
         this.load.image('environment', './Assets/environment.png');
         this.load.atlas('agents', './Assets/agents.png', './Assets/agents.json');
         this.load.tilemapCSV('map', './layouts/layout_1V2.csv')
+        this.load.atlas('objects', './Assets/objects.png', './Assets/objects.json');
+        this.load.atlas('soups', './Assets/soups.png', './Assets/soups.json');
+
     }
 
     create() {
@@ -36,18 +39,37 @@ export default class CollabScene extends Phaser.Scene {
             'up': this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
             'down': this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
             'left': this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
-            'right': this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT)
+            'right': this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT),
+            'interact': this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E),
+            'DRT': this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
         }
+
+        // data to record and be sent
         this.state = {
             time:0,
             x:startPos1.x,
             y:startPos1.y,
             direction:'SOUTH',
-            interact:0
+            interact:0,
+            player_collision_tile:null
         };
+
+        // defining directions and suffixes for directions
+        this.directions = ['NORTH', 'EAST', 'SOUTH', 'WEST'];
+        this.onion = '-onion.png';
+        this.onion_soup = '-onion-soup.png';
+        this.dish = '-dish.png';
+        this.tomato = '-tomato.png';
+        this.tomato_soup = '-tomato-soup.png';
+        this.pot_onion = ['onion-pot-1.png', 'onion-pot-2.png', 'onion-pot-3.png'];
+        this.pot_tomato = ['tomato-pot-1.png', 'tomato-pot-2.png', 'tomato-pot-3.png'];
+        this.cooking_onion = ['onion-cooking-1.png', 'onion-cooking-2.png', 'onion-cooking-3.png', 'onion-cooked.png'];
+
         this.player_collision_tile = null;
+        this.interact_key = false;
+        this.player_interact = 0;
         const scene = this;
-        
+
         // Creates and loads the tilemap 
         this.map = this.make.tilemap({ key: 'map', tileWidth: envConstants.tileSize, tileHeight: envConstants.tileSize });
         this.tileset = this.map.addTilesetImage('environment', null, envConstants.tileSize, envConstants.tileSize, 0, 0);
@@ -59,19 +81,6 @@ export default class CollabScene extends Phaser.Scene {
 
         // Set callbacks for collision events
         this.layer.setTileIndexCallback(tilesToCollideWith, this.handleTileCollision, this);
-
-        // sets collision for everything but floor
-        // creates the interactable layer
-
-
-        /*
-        We need to define the interact functions later for each kind of tile we might have
-        we will then set a setTileIndexCallback for each of these functions to be called
-        when they collide with that tile
-        This will then change the image and env if applicable.
-        */
-
-
 
         // creates and loads the players
         this.players = this.physics.add.group();
@@ -91,32 +100,87 @@ export default class CollabScene extends Phaser.Scene {
         this.physics.world.collide(this.player, this.otherPlayer);
 
         // Move player method
-        this.movePlayer(this.player, envConstants.playerSpeed, this.keys);
+        this.movePlayer(this.player, envConstants.playerSpeed, this.keys, this.player_interact);
         // Updating movement of other players
 
         // updating state
         // each update is 1/FPS seconds
         // all other updates are handled in functions below
         this.state.time += 1/envConstants.FPS;
+        this.handleKeyInteraction();
+        this.handleTileInteraction();
     }
     
-    movePlayer(player, speed, keys) {
+    movePlayer(player, speed, keys, interact) {
         player.body.setVelocity(0);
 
         // Movement system gives priority to the FIRST key pressed
-        if (keys.left.isDown) {
-            player.body.setVelocityX(-speed);
-            this.updateDirection(player, 'WEST');
-        } else if (keys.right.isDown) {
-            player.body.setVelocityX(speed);
-            this.updateDirection(player, 'EAST');
-        } else if (keys.up.isDown) {
-            player.body.setVelocityY(-speed);
-            this.updateDirection(player, 'NORTH');
-        } else if (keys.down.isDown) {
-            player.body.setVelocityY(speed);
-            this.updateDirection(player, 'SOUTH');
+        if (this.player_interact == 0) {
+            if (keys.left.isDown) {
+                player.body.setVelocityX(-speed);
+                this.updateDirection(player, 'WEST');
+            } else if (keys.right.isDown) {
+                player.body.setVelocityX(speed);
+                this.updateDirection(player, 'EAST');
+            } else if (keys.up.isDown) {
+                player.body.setVelocityY(-speed);
+                this.updateDirection(player, 'NORTH');
+            } else if (keys.down.isDown) {
+                player.body.setVelocityY(speed);
+                this.updateDirection(player, 'SOUTH');
         }
+        else if (this.player_interact == 1) {
+            if (keys.left.isDown) {
+                player.body.setVelocityX(-speed);
+                this.updateDirection(player, 'WEST-dish');
+            } else if (keys.right.isDown) {
+                player.body.setVelocityX(speed);
+                this.updateDirection(player, 'EAST-dish');
+            } else if (keys.up.isDown) {
+                player.body.setVelocityY(-speed);
+                this.updateDirection(player, 'NORTH-dish');
+            } else if (keys.down.isDown) {
+                player.body.setVelocityY(speed);
+                this.updateDirection(player, 'SOUTH-dish');
+            }
+        }
+        else if (this.player_interact == 3) {
+            if (keys.left.isDown) {
+                player.body.setVelocityX(-speed);
+                this.updateDirection(player, 'WEST-onion');
+            }
+            else if (keys.right.isDown) {
+                player.body.setVelocityX(speed);
+                this.updateDirection(player, 'EAST-onion');
+            }
+            else if (keys.up.isDown) {
+                player.body.setVelocityY(-speed);
+                this.updateDirection(player, 'NORTH-onion');
+            }
+            else if (keys.down.isDown) {
+                player.body.setVelocityY(speed);
+                this.updateDirection(player, 'SOUTH-onion');
+            }
+        }
+        else if (this.player_interact == 6) {
+            if (keys.left.isDown) {
+                player.body.setVelocityX(-speed);
+                this.updateDirection(player, 'WEST-tomato');
+            }
+            else if (keys.right.isDown) {
+                player.body.setVelocityX(speed);
+                this.updateDirection(player, 'EAST-tomato');
+            }
+            else if (keys.up.isDown) {
+                player.body.setVelocityY(-speed);
+                this.updateDirection(player, 'NORTH-tomato');
+            }
+            else if (keys.down.isDown) {
+                player.body.setVelocityY(speed);
+                this.updateDirection(player, 'SOUTH-tomato');
+            }
+        }
+    }
 
         // update state to reflect player position
         this.state.x = player.body.x;
@@ -133,9 +197,49 @@ export default class CollabScene extends Phaser.Scene {
 
     handleTileCollision(player, tile) {
         // Stores tile that the player is colliding with to be used for interactions later
+        // we want to have a value that we just refer to, but also one that we store for later 
+        // might be a little redundant??
         this.player_collision_tile = tile.index
-        // update state to reflect interaction
-        this.state.interact = tile.index;
+        this.state.player_collision_tile = tile.index;
+    }
+    handleKeyInteraction() {
+        // literally just returns value if interact key is pressed
+        if (this.keys.interact.isDown) {
+            this.interact_key = true;
+        } else {
+            this.interact_key = false;
+        }
+    }
+    handleTileInteraction() {
+        // Handle interaction with specific tile
+        // Checks if they press key and what tile they are interacting with
+        // can then use this to set thier image. 
+        //
+          if (this.interact_key == true) {
+            if (this.player_collision_tile == 1) {
+                console.log("Dish");
+                this.player_interact = 1;
+            }
+            else if (this.player_collision_tile == 3) {
+                console.log("Onion");
+                this.player_interact = 3;
+            }
+            else if (this.player_collision_tile == 4) {
+                console.log("Pot");
+                this.player_interact = 4;
+            }
+            else if (this.player_collision_tile == 5) {
+                console.log("Serve");
+                this.player_interact = 5;
+            }
+            else if (this.player_collision_tile == 6) {
+                console.log("Tomato");
+                this.player_interact = 6;
+            }
+            else {
+                this.player_interact = 0;
+            }
+        }
     }
 }
 
