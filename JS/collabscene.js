@@ -5,9 +5,10 @@ const expConstants = {
 };
 
 const envConstants = {
-  playerSpeed: 120,
+  playerSpeed: 240,
   FPS: 60,
   tileSize: 45,
+  cookingTime: 3000
 };
 
 const startPos1 = {
@@ -46,7 +47,7 @@ export default class CollabScene extends Phaser.Scene {
     };
 
     // data to record and be sent
-    this.state = {
+    this.player_state = {
       time: 0,
       x: startPos1.x,
       y: startPos1.y,
@@ -54,28 +55,16 @@ export default class CollabScene extends Phaser.Scene {
       interact: 0,
       player_collision_tile: null,
       player_onions_added :0,
+      pot_onions: 0,
+      pot_cooking_stage:0,
+      player_carrying_soup: false,
+      player_soups_served: 0,
     };
-
+    this.env_state = {
+        time:0,
+    };
     // defining directions and suffixes for directions
     this.directions = ["NORTH", "EAST", "SOUTH", "WEST"];
-    this.onion = "-onion.png";
-    this.onion_soup = "-onion-soup.png";
-    this.dish = "-dish.png";
-    this.tomato = "-tomato.png";
-    this.tomato_soup = "-tomato-soup.png";
-    this.pot_onion = ["onion-pot-1.png", "onion-pot-2.png", "onion-pot-3.png"];
-    this.pot_tomato = [
-      "tomato-pot-1.png",
-      "tomato-pot-2.png",
-      "tomato-pot-3.png",
-    ];
-    this.cooking_onion = [
-      "onion-cooking-1.png",
-      "onion-cooking-2.png",
-      "onion-cooking-3.png",
-      "onion-cooked.png",
-    ];
-
     this.player_collision_tile = null;
     this.interact_key = false;
     this.player_interact = 0;
@@ -85,6 +74,7 @@ export default class CollabScene extends Phaser.Scene {
     this.potImages = [];
     this.interaction_dist = 45;
     this.lastInteractTime = 0;
+    this.pot_cooking = false;
     const scene = this;
 
     // Creates and loads the tilemap
@@ -150,10 +140,26 @@ export default class CollabScene extends Phaser.Scene {
             this.potImages.push(potImage);
         }
     });
-    
+    this.env_state.pots = [];
+
+// Create an object for each pot image and push it into env_state.pots
+    this.env_state.pots = [];
+    for (let i = 0; i < this.potImages.length; i++) {
+        const potImage = this.potImages[i];
+        this.env_state.pots.push({
+            time: 0,
+            onions: 0,
+            cooking_stage: 0,
+            cooking: false,
+            explosion: false,
+            x: potImage.x,
+            y: potImage.y
+        });
+    }
+
   }
   update() {
-    // sets collision
+    // sets collisionå
     this.physics.world.collide(this.player, this.layer);
     this.physics.world.collide(this.otherPlayer, this.layer);
     // collision between players
@@ -171,11 +177,13 @@ export default class CollabScene extends Phaser.Scene {
     // updating state
     // each update is 1/FPS seconds
     // all other updates are handled in functions below
-    this.state.time += 1 / envConstants.FPS;
+    this.env_state.time += 1 / envConstants.FPS;
     this.handleKeyInteraction();
     this.updatePlayerImage();
     this.handleTileInteraction();
     this.handleEnvInteraction();
+    this.handlePotCooking();
+    this.handleServing();
   }
 
   movePlayer(player, speed, keys, interact) {
@@ -197,8 +205,8 @@ export default class CollabScene extends Phaser.Scene {
     }
 
     // Update state to reflect player position and direction
-    this.state.x = player.body.x;
-    this.state.y = player.body.y;
+    this.player_state.x = player.body.x;
+    this.player_state.y = player.body.y;
   }
 
   updateDirection(player, direction) {
@@ -206,12 +214,12 @@ export default class CollabScene extends Phaser.Scene {
     const filename = `${direction}.png`;
     player.setFrame(filename);
     // update state to reflect direction
-    this.state.direction = direction;
+    this.player_state.direction = direction;
   }
   updatePlayerImage() {
     if (this.interact_key && this.interactedObject) {
       // Update player's image based on interaction and direction
-      const filename = `${this.state.direction}${this.interactedObject}.png`;
+      const filename = `${this.player_state.direction}${this.interactedObject}.png`;
       this.player.setFrame(filename);
     }
     // No else condition needed here to ensure the player's image stays the same
@@ -222,7 +230,7 @@ export default class CollabScene extends Phaser.Scene {
     // we want to have a value that we just refer to, but also one that we store for later
     // might be a little redundant??
     this.player_collision_tile = tile.index;
-    this.state.player_collision_tile = tile.index;
+    this.player_state.player_collision_tile = tile.index;
   }
   handleKeyInteraction() {
     // literally just returns value if interact key is pressed
@@ -242,32 +250,42 @@ export default class CollabScene extends Phaser.Scene {
     if (this.interact_key && !this.interactedObject) {
       let interactionSuffix = "";
       if (this.player_collision_tile == 1) {
+        // picks up dish
         console.log("Dish");
         interactionSuffix = "-dish";
-        this.state.interact = 1;
+        this.player_state.interact = 1;
       } else if (this.player_collision_tile == 3) {
+        // picks up onion
         console.log("Onion");
         interactionSuffix = "-onion";
-        this.state.interact = 3;
+        this.player_state.interact = 3;
+      } else if (this.player_collision_tile == 5) {
+        // Resets the player's image to the default when they interact with the serving window
+        console.log('serve');
+        this.player_state.interact = 0;
+        interactionSuffix = '';
       } else if (this.player_collision_tile == 6) {
+        // picks up tomato
         console.log("Tomato");
         interactionSuffix = "-tomato";
-        this.state.interact = 6;
-      }
-      console.log(this.state.interact);
+        this.player_state.interact = 6;
+      } 
       this.interactedObject = interactionSuffix; // Mark the object as interacted
       this.updatePlayerImage(); // Update the player's image immediately after interaction
     } else if (!this.interact_key) {
       this.interactedObject = null; // Reset the interaction state when the interact key is released
     }
   }
+
   handleEnvInteraction() {
     // Add a flag to track whether the player has interacted with the pot during the current interaction
     let potInteracted = false;
-
     // Check if the interact key was just pressed and there has been sufficient cooldown time
-    if (this.keys.interact.isDown && this.interactedObject === "-onion" && this.time.now > this.lastInteractTime + 200) {
-        for (let potImage of this.potImages) {
+    // Add the cooldown time so that a single player cannot place multiple onions in at once
+    if (this.keys.interact.isDown && this.interactedObject === "-onion" && this.time.now > this.lastInteractTime + 3000) {
+        for (let i = 0; i < this.potImages.length; i++) {
+            let potImage = this.potImages[i];
+            console.log('Index:', i, 'Pot Image:', potImage, 'Pots Array:', this.env_state.pots);
             // Calculate the distance between the player and the pot
             const distance = Phaser.Math.Distance.Between(
                 this.player.x,
@@ -280,27 +298,21 @@ export default class CollabScene extends Phaser.Scene {
                 // Update the last interaction time
                 this.lastInteractTime = this.time.now;
                 // Check if the pot already contains maximum onions
-                console.log(this.state.player_onions_added);
                 if (potImage.onions < 3) {
                     // Increment the number of onions in the pot by 1
                     potImage.onions++;
-                    console.log(`Onions in pot: ${potImage.onions}`);
                     // increase thier total number of onions added
-                    this.state.player_onions_added += 1;
-                    console.log(this.state.player_onions_added);
-
+                    this.player_state.player_onions_added += 1;
+                    this.env_state.pots[i] = potImage.onions;
                     // Update the pot's image
                     const potImageKey = `onion-pot-${potImage.onions}.png`;
                     potImage.setTexture('soups', potImageKey);
-
                     // Remove the onion from the player's inventory
-                    this.state.interact = null;
+                    this.player_state.interact = null;
                     this.updatePlayerImage();
-
                     // Reset the interacted object to null
                     this.interactedObject = null;
-
-                    // Set the flag to true to indicate that the pot has been interacted with
+                    // Set the flag to true to indicate that the pot has been interacted with by the player
                     potInteracted = true;
                 }
 
@@ -308,9 +320,87 @@ export default class CollabScene extends Phaser.Scene {
             }
         }
     }
+    }
+    /*
+    This currently does not scale for multiple pots, need to figure out a better way of doing this. 
+    Maybe could assign the pots to a list before hand and then add that list to the pot_cooking state variable. 
+    */ 
+    handlePotCooking() {
+        // Other code...
+    
+        // Iterate over the potImages array to update pot states
+        for (let i = 0; i < this.potImages.length; i++) {
+            const potImage = this.potImages[i];
+            if (potImage.onions === 3) {
+                // Start cooking
+                potImage.cooking = true;
+                potImage.cooking_stage = 1;
+                potImage.onions = 0;
+    
+                // Ensure that the index i is within the bounds of this.env_state.pots
+                if (i < this.env_state.pots.length) {
+                    // Update the corresponding pot state in the env_state.pots array
+                    this.env_state.pots[i].cooking = true;
+                    this.env_state.pots[i].cooking_stage = 1;
+                    this.env_state.pots[i].onions = 0;
+    
+                    // Update the pot's image to show that it is cooking
+                    potImage.setTexture('soups', 'onion-cooking-1.png');
+    
+                    // Start a timer that advances the cooking stage every 3 seconds
+                    this.time.addEvent({
+                        delay: 3000,
+                        callback: () => {
+                            // Increment the cooking stage
+                            potImage.cooking_stage++;
+    
+                            // Ensure that the index i is within the bounds of this.env_state.pots
+                            if (i < this.env_state.pots.length) {
+                                // Update the corresponding pot state in the env_state.pots array
+                                this.env_state.pots[i].cooking_stage = potImage.cooking_stage;
+    
+                                // Update the pot's image
+                                const potImageKey = `onion-cooking-${potImage.cooking_stage}.png`;
+                                potImage.setTexture('soups', potImageKey);
+                            }
+                        },
+                        repeat: 1
+                    });
+                }
+            }
+        }
+    }
+    
+
+    handleServing(){
+        if (this.keys.interact.isDown && this.interactedObject === "-dish" && this.time.now > this.lastInteractTime + 3000) {
+            let potInteracted = false;
+            for (let potImage of this.potImages) {
+                // Calculate the distance between the player and the pot
+                const distance = Phaser.Math.Distance.Between(
+                    this.player.x,
+                    this.player.y,
+                    potImage.x,
+                    potImage.y
+                );
+                // Check if the player is within a certain distance of the pot
+                if (distance < this.interaction_dist && !potInteracted && potImage.cooking_stage === 3) {
+                    potImage.onions = 0;
+                    potImage.cooking_stage = 0;
+                    potImage.cooking = false;
+                    potImage.setTexture('terrain', 'pot.png');
+                    this.interactedObject = '-soup-onion';
+                    this.updatePlayerImage();
+                    potInteracted = true;
+            }
+        }
+    }
+    if (this.keys.interact.isDown && this.interactedObject ==  '-soup-onion' && this.player_state.player_collision_tile == 5) {
+        this.player_state.player_soups_served += 1;
+        this.interactedObject = null;
+        this.updatePlayerImage();
+
+    }
+
 }
-
-
-
-
 }
